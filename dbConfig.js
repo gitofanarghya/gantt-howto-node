@@ -1,8 +1,8 @@
 const dbConfig = {
-  user: 'adpsqladmin',
-  password: 'Crazy2000000',
-  server: 'adp-sql.database.windows.net',
-  database: 'adp-sql',
+  user: "adpsqladmin",
+  password: "Crazy2000000",
+  server: "adp-sql.database.windows.net",
+  database: "adp-sql-development",
   connectionTimeout: 300000,
   requestTimeout: 300000,
   pool: {
