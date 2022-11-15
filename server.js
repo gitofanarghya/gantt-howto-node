@@ -8,6 +8,7 @@ var cors = require("cors");
 const port = 1337;
 const app = express();
 const queryExecutor = require("./queryExecutor.js");
+const { send } = require("express/lib/response.js");
 app.use(cors());
 
 app.use(express.static(path.join(__dirname, "public")));
@@ -56,8 +57,8 @@ async function serverСonfig() {
 
     const result = Promise.all([
       queryExecutor.executeQuery(
-        `INSERT INTO org.activity_copy(name, start_date, duration_in_days, progress, project_ID) 
-        VALUES ('${task.text}','${task.start_date}','${task.duration}','${task.progress}','${task.parent}')`
+        `INSERT INTO org.activity_copy(name, start_date, duration_in_days, progress, project_ID,parent) 
+        VALUES ('${task.text}','${task.start_date}','${task.duration}','${task.progress}','${task.project_ID}','${task.parent}')`
       ),
       //db.query("SELECT * FROM gantt_links")
     ]);
@@ -95,33 +96,11 @@ async function serverСonfig() {
 
     const result = Promise.all([
       queryExecutor.executeQuery(
-        `UPDATE org.activity_copy SET name='${task.text}',start_date='${task.start_date}',end_date='${task.end_date}',duration_in_days='${task.duration}',progress='${task.progress}',project_ID='${task.parent}'
-        where activity_ID='${activityid}'
-        `
+        `UPDATE org.activity_copy SET name='${task.text}',start_date='${task.start_date}',end_date='${task.end_date}',duration_in_days='${task.duration}',progress='${task.progress}',project_ID='${task.project_ID},parent:'${task.parent}'
+         where activity_ID='${activityid}'`
       ),
-      //db.query("SELECT * FROM gantt_links")
     ]);
 
-    // Promise.all([
-    //   db.query(
-    //     "UPDATE gantt_tasks SET text = ?, start_date = ?, duration = ?, progress = ?, parent = ? WHERE id = ?",
-    //     [
-    //       task.text,
-    //       task.start_date,
-    //       task.duration,
-    //       task.progress,
-    //       task.parent,
-    //       sid,
-    //     ]
-    //   ),
-    //   updateOrder(sid, target),
-    // ])
-    //   .then((result) => {
-    //     sendResponse(res, "updated");
-    //   })
-    //   .catch((error) => {
-    //     sendResponse(res, "error", null, error);
-    //   });
     res.send(req.body);
   });
 
@@ -177,50 +156,96 @@ async function serverСonfig() {
     res.send(`successfully deleted ${activityId}`);
   });
 
-  // add link
-  app.post("/data/link", (req, res) => {
-    let link = getLink(req.body);
-
-    db.query("INSERT INTO gantt_links(source, target, type) VALUES (?,?,?)", [
-      link.source,
-      link.target,
-      link.type,
+  //get Link Type Api
+  app.get("/linktype", (req, res) => {
+    Promise.all([
+      queryExecutor.executeQuery(
+        `select link_type_ID,type,name from org.activity_links_type order by link_type_ID asc`
+      ),
+      //db.query("SELECT * FROM gantt_links")
     ])
-      .then((result) => {
-        sendResponse(res, "inserted", result.insertId);
+      .then((results) => {
+        let linktype = results[0];
+        //links = results[1];
+
+        res.send({
+          linktype,
+          //collections: { links: links }
+        });
       })
       .catch((error) => {
         sendResponse(res, "error", null, error);
       });
+  });
+
+  //get link
+  app.get("/tasklink", (req, res) => {
+    Promise.all([
+      queryExecutor.executeQuery(
+        `SELECT activity_links_ID,source,target,type FROM org.activity_links  ORDER BY id ASC`
+      ),
+      //db.query("SELECT * FROM gantt_links")
+    ])
+      .then((results) => {
+        let link = results[0];
+        //links = results[1];
+
+        res.send({
+          link,
+          //collections: { links: links }
+        });
+      })
+      .catch((error) => {
+        sendResponse(res, "error", null, error);
+      });
+  });
+
+  // add link
+  app.post("/addlink", (req, res) => {
+    let link = getLink(req.body);
+
+    const result = Promise.all([
+      queryExecutor.executeQuery(
+        `INSERT INTO org.activity_links(source,target,type) 
+        VALUES ('${link.source}','${link.target}','${link.type}')`
+      ),
+      //db.query("SELECT * FROM gantt_links")
+    ]);
+
+    res.send(result);
   });
 
   // update link
-  app.put("/data/link/:id", (req, res) => {
-    let sid = req.params.id,
-      link = getLink(req.body);
+  app.put("/updatelink/:activitylinkID", (req, res) => {
+    let { activitylinkID } = req.params;
+    let { type } = req.body;
 
-    db.query(
-      "UPDATE gantt_links SET source = ?, target = ?, type = ? WHERE id = ?",
-      [link.source, link.target, link.type, sid]
-    )
-      .then((result) => {
-        sendResponse(res, "updated");
-      })
-      .catch((error) => {
-        sendResponse(res, "error", null, error);
-      });
+    console.log(activitylinkID, type);
+
+    const result = Promise.all([
+      queryExecutor.executeQuery(
+        `UPDATE org.activity_links SET type='${type}'
+        where activity_links_ID='${activitylinkID}'
+        `
+      ),
+      //db.query("SELECT * FROM gantt_links")
+    ]);
+    console.log(result);
+
+    res.send(result);
   });
 
   // delete link
-  app.delete("/data/link/:id", (req, res) => {
-    let sid = req.params.id;
-    db.query("DELETE FROM gantt_links WHERE id = ?", [sid])
-      .then((result) => {
-        sendResponse(res, "deleted");
-      })
-      .catch((error) => {
-        sendResponse(res, "error", null, error);
-      });
+  app.delete("/deletelink/:activitylinkID", (req, res) => {
+    let { activitylinkID } = req.params;
+    const result = Promise.all([
+      queryExecutor.executeQuery(
+        `DELETE FROM org.activity_links WHERE activity_links_ID ='${activitylinkID}'`
+      ),
+      //db.query("SELECT * FROM gantt_links")
+    ]);
+
+    res.send("deleted");
   });
 
   function getTask(data) {
@@ -231,6 +256,7 @@ async function serverСonfig() {
       duration: data.duration,
       progress: data.progress || 0,
       parent: data.parent,
+      project_ID: data.project_ID,
     };
   }
 
